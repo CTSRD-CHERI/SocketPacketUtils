@@ -52,7 +52,7 @@
 
 // API
 ////////////////////////////////////////////////////////////////////////////////
-unsigned long long serv_socket_create(const char * name);
+unsigned long long serv_socket_create(const char * name, unsigned int dflt_port);
 inline void serv_socket_init(unsigned long long ptr);
 uint32_t serv_socket_get8(unsigned long long ptr);
 uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte);
@@ -63,18 +63,19 @@ uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
 ////////////////////////////////////////////////////////////////////////////////
 #define STR_BUFF_SZ 256
 
-int getPortNumber(const char * name)
+int getPortNumber(const char * name, unsigned int dflt_port)
 {
   char env_var_name[STR_BUFF_SZ+5];
   sprintf(env_var_name, "%s_PORT", name);
   char* s = getenv(env_var_name);
-  if (s == NULL) {
-    fprintf(stderr, "ERROR: Environment variable %s not defined\n", env_var_name);
-    exit(EXIT_FAILURE);
+  int port = -1;
+  if (s != NULL) port = atoi(s);
+  else {
+    printf("---- %s environment variable not defined, using default port instead\n", env_var_name);
+    port = (int) dflt_port;
   }
-  int port = atoi(s);
   assert(port >= 0 && port <= 65535);
-  return atoi(s);
+  return port;
 }
 
 // Make a socket non-blocking
@@ -95,6 +96,7 @@ void socketSetNonBlocking(int sock)
 // state for a server
 typedef struct {
   char name[STR_BUFF_SZ];
+  int port;
   int sock;
   int conn;
 } serv_socket_state_t;
@@ -110,20 +112,21 @@ inline void acceptConnection(serv_socket_state_t * s)
 
   // Make connection non-blocking
   if (s->conn != -1) {
-    printf("Got connection!\n");
+    printf("---- %s socket got a connection\n", s->name);
     socketSetNonBlocking(s->conn);
   }
 }
 
 // serv_socket API implementation
 ////////////////////////////////////////////////////////////////////////////////
-unsigned long long serv_socket_create(const char * name)
+unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) malloc (sizeof(serv_socket_state_t));
   if (strncpy(s->name, name, STR_BUFF_SZ) == NULL) {
     fprintf(stderr, "ERROR: could not copy the name when creating server state\n");
     exit(EXIT_FAILURE);
   }
+  s->port = dflt_port;
   s->sock = -1;
   s->conn = -1;
   printf("---- allocated socket for %s\n", s->name);
@@ -147,11 +150,12 @@ inline void serv_socket_init(unsigned long long ptr)
   }
 
   // Bind socket
+  s->port = getPortNumber(s->name, s->port);
   struct sockaddr_in sockAddr;
   memset(&sockAddr, 0, sizeof(sockAddr));
   sockAddr.sin_family = AF_INET;
   sockAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-  sockAddr.sin_port = htons(getPortNumber(s->name));
+  sockAddr.sin_port = htons(s->port);
   int ret = bind(s->sock, (struct sockaddr *) &sockAddr, sizeof(sockAddr));
   if (ret == -1) {
     perror("bind");
@@ -167,6 +171,8 @@ inline void serv_socket_init(unsigned long long ptr)
 
   // Make it non-blocking
   socketSetNonBlocking(s->sock);
+
+  printf("---- %s socket listening on port %d\n", s->name, s->port);
 }
 
 // Non-blocking read of 8 bits
