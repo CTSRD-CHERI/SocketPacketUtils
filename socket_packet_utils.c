@@ -71,7 +71,7 @@ int getPortNumber(const char * name, unsigned int dflt_port)
   int port = -1;
   if (s != NULL) port = atoi(s);
   else {
-    printf("---- %s environment variable not defined, using default port instead\n", env_var_name);
+    printf("---- %s environment variable not defined, using default port %d instead\n", env_var_name, dflt_port);
     port = (int) dflt_port;
   }
   assert(port >= 0 && port <= 65535);
