@@ -134,7 +134,7 @@ unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
 }
 
 // Open, bind and listen
-inline void serv_socket_init(unsigned long long ptr)
+extern inline void serv_socket_init(unsigned long long ptr)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
   if (s->sock != -1) return;
