@@ -267,7 +267,7 @@ uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
     FD_ZERO(&fds);
     FD_SET(s->conn, &fds);
     while (count < nbytes) {
-      int res = select(1, &fds, NULL, NULL, NULL);
+      int res = select(s->conn+1, NULL, &fds, NULL, NULL);
       assert(res >= 0);
       res = write(s->conn, &bytes[count], nbytes-count);
       assert(res >= 0);
