@@ -52,12 +52,19 @@
 
 // API
 ////////////////////////////////////////////////////////////////////////////////
-unsigned long long serv_socket_create(const char * name, unsigned int dflt_port);
-inline void serv_socket_init(unsigned long long ptr);
-uint32_t serv_socket_get8(unsigned long long ptr);
-uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte);
-void serv_socket_getN(unsigned int* result, unsigned long long ptr, int nbytes);
-uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data);
+#ifdef __cplusplus
+extern "C" {
+#endif
+  extern unsigned long long serv_socket_create(const char * name, unsigned int dflt_port);
+  extern unsigned long long serv_socket_create_nameless(unsigned int dflt_port);
+  extern inline void serv_socket_init(unsigned long long ptr);
+  extern uint32_t serv_socket_get8(unsigned long long ptr);
+  extern uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte);
+  extern void serv_socket_getN(void* result, unsigned long long ptr, int nbytes);
+  extern uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data);
+#ifdef __cplusplus
+}
+#endif
 
 // General helpers
 ////////////////////////////////////////////////////////////////////////////////
@@ -131,6 +138,12 @@ unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
   s->conn = -1;
   printf("---- allocated socket for %s\n", s->name);
   return (unsigned long long) s;
+}
+
+// A wrapper for systems that don't allow passing strings (verilator?)
+unsigned long long serv_socket_create_nameless(unsigned int dflt_port)
+{
+  return serv_socket_create("RVFI_DII", dflt_port);
 }
 
 // Open, bind and listen
@@ -211,7 +224,7 @@ uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
 // Try to read N bytes from socket, giving N+1 byte result. Bottom N
 // bytes contain data and MSB is 0 if data is valid or non-zero if no
 // data is available.  Non-blocking on N-byte boundaries.
-void serv_socket_getN(unsigned int* result, unsigned long long ptr, int nbytes)
+void serv_socket_getN(void* result, unsigned long long ptr, int nbytes)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
   uint8_t* bytes = (uint8_t*) result;
