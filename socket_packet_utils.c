@@ -221,6 +221,23 @@ uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
   return 0;
 }
 
+// Blocking write of 8 bits
+uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
+{
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  acceptConnection(s);
+  if (s->conn == -1) return 0;
+  for (int try = 1; try <= 1000; try++) {
+    int n = write(s->conn, &byte, 1);
+    if (n == 1) return 1;
+    else if (!(n == -1 && errno == EAGAIN)) return 0;
+    usleep(1000000);
+  }
+  perror("Failed to send byte in socket");
+  return 0;
+}
+
+
 // Try to read N bytes from socket, giving N+1 byte result. Bottom N
 // bytes contain data and MSB is 0 if data is valid or non-zero if no
 // data is available.  Non-blocking on N-byte boundaries.
