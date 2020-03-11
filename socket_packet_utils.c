@@ -60,6 +60,7 @@ extern "C" {
   extern inline void serv_socket_init(unsigned long long ptr);
   extern uint32_t serv_socket_get8(unsigned long long ptr);
   extern uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte);
+  extern uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte);
   extern void serv_socket_getN(void* result, unsigned long long ptr, int nbytes);
   extern uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data);
 #ifdef __cplusplus
@@ -227,7 +228,7 @@ uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
   serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
   acceptConnection(s);
   if (s->conn == -1) return 0;
-  for (int try = 1; try <= 1000; try++) {
+  for (int i = 1; i <= 1000; i++) {
     int n = write(s->conn, &byte, 1);
     if (n == 1) return 1;
     else if (!(n == -1 && errno == EAGAIN)) return 0;
