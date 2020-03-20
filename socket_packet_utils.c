@@ -49,6 +49,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <signal.h>
+#include <string.h>
 
 // API
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,7 +151,7 @@ unsigned long long serv_socket_create_nameless(unsigned int dflt_port)
 // Open, bind and listen
 extern inline void serv_socket_init(unsigned long long ptr)
 {
-  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   if (s->sock != -1) return;
 
   // Ignore SIGPIPE
@@ -192,7 +193,7 @@ extern inline void serv_socket_init(unsigned long long ptr)
 // Non-blocking read of 8 bits
 uint32_t serv_socket_get8(unsigned long long ptr)
 {
-  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   uint8_t byte;
   acceptConnection(s);
   if (s->conn == -1) return -1;
@@ -209,7 +210,7 @@ uint32_t serv_socket_get8(unsigned long long ptr)
 // Non-blocking write of 8 bits
 uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
 {
-  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   acceptConnection(s);
   if (s->conn == -1) return 0;
   int n = write(s->conn, &byte, 1);
@@ -225,7 +226,7 @@ uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
 // Blocking write of 8 bits
 uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
 {
-  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   acceptConnection(s);
   if (s->conn == -1) return 0;
   for (int i = 1; i <= 1000; i++) {
@@ -244,7 +245,7 @@ uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
 // data is available.  Non-blocking on N-byte boundaries.
 void serv_socket_getN(void* result, unsigned long long ptr, int nbytes)
 {
-  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   uint8_t* bytes = (uint8_t*) result;
   acceptConnection(s);
   if (s->conn == -1) {
@@ -285,7 +286,7 @@ void serv_socket_getN(void* result, unsigned long long ptr, int nbytes)
 // returning 0 when no write performed.
 uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
 {
-  serv_socket_state_t * s = (serv_socket_state_t *) ptr; 
+  serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   acceptConnection(s);
   if (s->conn == -1) return 0;
   uint8_t* bytes = (uint8_t*) data;
