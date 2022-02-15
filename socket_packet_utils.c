@@ -111,7 +111,7 @@ typedef struct {
 } serv_socket_state_t;
 
 // Accept connection
-inline void acceptConnection(serv_socket_state_t * s)
+void acceptConnection(serv_socket_state_t * s)
 {
   if (s->conn != -1) return;
   if (s->sock == -1) serv_socket_init((unsigned long long) s);
