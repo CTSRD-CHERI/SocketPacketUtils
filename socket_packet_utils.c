@@ -50,6 +50,7 @@
 #include <assert.h>
 #include <signal.h>
 #include <string.h>
+#include <stdbool.h>
 
 // API
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,6 +65,10 @@ extern "C" {
   extern uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte);
   extern void serv_socket_getN(void* result, unsigned long long ptr, int nbytes);
   extern uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data);
+  extern unsigned long long client_socket_create(const char * name, unsigned int dflt_port);
+  extern inline void client_socket_init(unsigned long long ptr);
+  extern uint8_t client_socket_put8_blocking(unsigned long long ptr, uint8_t byte);
+  extern void client_socket_getN(void* result, unsigned long long ptr, int nbytes);
 #ifdef __cplusplus
 }
 #endif
@@ -111,24 +116,24 @@ typedef struct {
 } serv_socket_state_t;
 
 // Accept connection
-void acceptConnection(serv_socket_state_t * s)
+void acceptConnection(serv_socket_state_t * s, bool server)
 {
   if (s->conn != -1) return;
-  if (s->sock == -1) serv_socket_init((unsigned long long) s);
+  if (s->sock == -1) socket_init((unsigned long long) s, server);
 
-  // Accept connection
-  s->conn = accept(s->sock, NULL, NULL);
+  if (server) {
+    // Accept connection
+    s->conn = accept(s->sock, NULL, NULL);
 
-  // Make connection non-blocking
-  if (s->conn != -1) {
-    printf("---- %s socket got a connection\n", s->name);
-    socketSetNonBlocking(s->conn);
-  }
+    // Make connection non-blocking
+    if (s->conn != -1) {
+      printf("---- %s socket got a connection\n", s->name);
+      socketSetNonBlocking(s->conn);
+    }
+  } else s->conn = s->sock;
 }
 
-// serv_socket API implementation
-////////////////////////////////////////////////////////////////////////////////
-unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
+unsigned long long socket_create(const char * name, unsigned int dflt_port)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) malloc (sizeof(serv_socket_state_t));
   if (strncpy(s->name, name, STR_BUFF_SZ) == NULL) {
@@ -142,14 +147,7 @@ unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
   return (unsigned long long) s;
 }
 
-// A wrapper for systems that don't allow passing strings (verilator?)
-unsigned long long serv_socket_create_nameless(unsigned int dflt_port)
-{
-  return serv_socket_create("RVFI_DII", dflt_port);
-}
-
-// Open, bind and listen
-extern inline void serv_socket_init(unsigned long long ptr)
+extern inline void socket_init(unsigned long long ptr, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   if (s->sock != -1) return;
@@ -177,17 +175,26 @@ extern inline void serv_socket_init(unsigned long long ptr)
   sockAddr.sin_family = AF_INET;
   sockAddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
   sockAddr.sin_port = htons(s->port);
-  int ret = bind(s->sock, (struct sockaddr *) &sockAddr, sizeof(sockAddr));
-  if (ret == -1) {
-    perror("bind");
-    exit(EXIT_FAILURE);
-  }
+  
+  if (server) {
+    int ret = bind(s->sock, (struct sockaddr *) &sockAddr, sizeof(sockAddr));
+    if (ret == -1) {
+      perror("bind");
+      exit(EXIT_FAILURE);
+    }
 
-  // Listen for connections
-  ret = listen(s->sock, 0);
-  if (ret == -1) {
-    perror("listen");
-    exit(EXIT_FAILURE);
+    // Listen for connections
+    ret = listen(s->sock, 0);
+    if (ret == -1) {
+      perror("listen");
+      exit(EXIT_FAILURE);
+    }
+  } else {
+    int ret = connect(s->sock, (struct sockaddr *) &sockAddr, sizeof(sockAddr));
+    if (ret == -1) {
+      perror("connect");
+      exit(EXIT_FAILURE);
+    }
   }
 
   // Make it non-blocking
@@ -197,11 +204,11 @@ extern inline void serv_socket_init(unsigned long long ptr)
 }
 
 // Non-blocking read of 8 bits
-uint32_t serv_socket_get8(unsigned long long ptr)
+uint32_t socket_get8(unsigned long long ptr, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   uint8_t byte;
-  acceptConnection(s);
+  acceptConnection(s, server);
   if (s->conn == -1) return -1;
   int n = read(s->conn, &byte, 1);
   if (n == 1)
@@ -214,10 +221,10 @@ uint32_t serv_socket_get8(unsigned long long ptr)
 }
 
 // Non-blocking write of 8 bits
-uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
+uint8_t socket_put8(unsigned long long ptr, uint8_t byte, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
-  acceptConnection(s);
+  acceptConnection(s, server);
   if (s->conn == -1) return 0;
   int n = write(s->conn, &byte, 1);
   if (n == 1)
@@ -230,10 +237,10 @@ uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
 }
 
 // Blocking write of 8 bits
-uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
+uint8_t socket_put8_blocking(unsigned long long ptr, uint8_t byte, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
-  acceptConnection(s);
+  acceptConnection(s, server);
   if (s->conn == -1) return 0;
   for (int i = 1; i <= 1000; i++) {
     int n = write(s->conn, &byte, 1);
@@ -249,11 +256,11 @@ uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
 // Try to read N bytes from socket, giving N+1 byte result. Bottom N
 // bytes contain data and MSB is 0 if data is valid or non-zero if no
 // data is available.  Non-blocking on N-byte boundaries.
-void serv_socket_getN(void* result, unsigned long long ptr, int nbytes)
+void socket_getN(void* result, unsigned long long ptr, int nbytes, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   uint8_t* bytes = (uint8_t*) result;
-  acceptConnection(s);
+  acceptConnection(s, server);
   if (s->conn == -1) {
     bytes[nbytes] = 0xff;
     return;
@@ -290,10 +297,10 @@ void serv_socket_getN(void* result, unsigned long long ptr, int nbytes)
 
 // Try to write N bytes to socket.  Non-blocking on N-bytes boundaries,
 // returning 0 when no write performed.
-uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
+uint8_t socket_putN(unsigned long long ptr, int nbytes, unsigned int* data, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
-  acceptConnection(s);
+  acceptConnection(s, server);
   if (s->conn == -1) return 0;
   uint8_t* bytes = (uint8_t*) data;
   int count = write(s->conn, bytes, nbytes);
@@ -320,4 +327,85 @@ uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
     }
     return 0;
   }
+}
+
+// serv_socket API implementation
+////////////////////////////////////////////////////////////////////////////////
+unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
+{
+  return socket_create(name, dflt_port);
+}
+
+// A wrapper for systems that don't allow passing strings (verilator?)
+unsigned long long serv_socket_create_nameless(unsigned int dflt_port)
+{
+  return serv_socket_create("RVFI_DII", dflt_port);
+}
+
+// Open, bind and listen
+extern inline void serv_socket_init(unsigned long long ptr)
+{
+  socket_init(ptr, true);
+}
+
+// Non-blocking read of 8 bits
+uint32_t serv_socket_get8(unsigned long long ptr)
+{
+  return socket_get8(ptr, true);
+}
+
+// Non-blocking write of 8 bits
+uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte)
+{
+  return socket_put8(ptr, byte, true);
+}
+
+// Blocking write of 8 bits
+uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte)
+{
+  return socket_put8_blocking(ptr, byte, true);
+}
+
+
+// Try to read N bytes from socket, giving N+1 byte result. Bottom N
+// bytes contain data and MSB is 0 if data is valid or non-zero if no
+// data is available.  Non-blocking on N-byte boundaries.
+void serv_socket_getN(void* result, unsigned long long ptr, int nbytes)
+{
+  socket_getN(result, ptr, nbytes, true);
+}
+
+// Try to write N bytes to socket.  Non-blocking on N-bytes boundaries,
+// returning 0 when no write performed.
+uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
+{
+  return socket_putN(ptr, nbytes, data, true);
+}
+
+// client_socket API implementation
+////////////////////////////////////////////////////////////////////////////////
+unsigned long long client_socket_create(const char * name, unsigned int dflt_port)
+{
+  return socket_create(name, dflt_port);
+}
+
+// Open, bind and listen
+extern inline void client_socket_init(unsigned long long ptr)
+{
+  socket_init(ptr, false);
+}
+
+// Try to read N bytes from socket, giving N+1 byte result. Bottom N
+// bytes contain data and MSB is 0 if data is valid or non-zero if no
+// data is available.  Non-blocking on N-byte boundaries.
+void client_socket_getN(void* result, unsigned long long ptr, int nbytes)
+{
+  socket_getN(result, ptr, nbytes, false);
+}
+
+// Try to write N bytes to socket.  Non-blocking on N-bytes boundaries,
+// returning 0 when no write performed.
+uint8_t client_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
+{
+  socket_putN(ptr, nbytes, data, false);
 }
