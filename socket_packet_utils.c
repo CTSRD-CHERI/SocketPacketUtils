@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2018 Matthew Naylor
  * Copyright (c) 2018 Jonathan Woodruff
- * Copyright (c) 2018 Alexandre Joannou
+ * Copyright (c) 2018-2022 Alexandre Joannou
  * Copyright (c) 2018 Hesham Almatary
  * All rights reserved.
  *
@@ -13,6 +13,13 @@
  * This software was partly developed by the University of Cambridge
  * Computer Laboratory as part of the Partially-Ordered Event-Triggered
  * Systems (POETS) project, funded by EPSRC grant EP/N031768/1.
+ *
+ * This material is based upon work supported by the DoD Information Analysis
+ * Center Program Management Office (DoD IAC PMO), sponsored by the Defense
+ * Technical Information Center (DTIC) under Contract No. FA807518D0004.  Any
+ * opinions, findings and conclusions or recommendations expressed in this
+ * material are those of the author(s) and do not necessarily reflect the views
+ * of the Air Force Installation Contracting Agency (AFICA).
  *
  * @BERI_LICENSE_HEADER_START@
  *
@@ -51,6 +58,13 @@
 #include <signal.h>
 #include <string.h>
 #include <stdbool.h>
+
+// The SOCKET_PACKET_UTILS_DFLT_SOCKET_NAME environment variable allows one to
+// use the socket packet utils library from a host language which does not have
+// the ability to express and pass strings as an argument to a C function call,
+// and still be able to name the socket created
+#define ENV_DFLT_SOCKET_NAME "SOCKET_PACKET_UTILS_DFLT_SOCKET_NAME"
+#define DFLT_SOCKET_NAME "SOCKET_PACKET_UTILS_DFLT"
 
 // API
 ////////////////////////////////////////////////////////////////////////////////
@@ -339,7 +353,13 @@ unsigned long long serv_socket_create(const char * name, unsigned int dflt_port)
 // A wrapper for systems that don't allow passing strings (verilator?)
 unsigned long long serv_socket_create_nameless(unsigned int dflt_port)
 {
-  return serv_socket_create("RVFI_DII", dflt_port);
+  char* s = getenv(ENV_DFLT_SOCKET_NAME);
+  if (s != NULL) return serv_socket_create(s, dflt_port);
+  else {
+    printf("---- " ENV_DFLT_SOCKET_NAME " environment variable not defined");
+    printf(", using default socket name %s instead\n", DFLT_SOCKET_NAME);
+    return serv_socket_create(DFLT_SOCKET_NAME, dflt_port);
+  }
 }
 
 // Open, bind and listen
@@ -409,3 +429,6 @@ uint8_t client_socket_putN(unsigned long long ptr, int nbytes, unsigned int* dat
 {
   socket_putN(ptr, nbytes, data, false);
 }
+
+#undef ENV_DFLT_SOCKET_NAME
+#undef DFLT_SOCKET_NAME
