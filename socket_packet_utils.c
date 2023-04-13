@@ -40,11 +40,12 @@
  * @BERI_LICENSE_HEADER_END@
  */
 
+#include "socket_packet_utils.h"
+
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <ctype.h>
 #include <assert.h>
 #include <sys/types.h>
@@ -65,27 +66,6 @@
 // and still be able to name the socket created
 #define ENV_DFLT_SOCKET_NAME "SOCKET_PACKET_UTILS_DFLT_SOCKET_NAME"
 #define DFLT_SOCKET_NAME "SOCKET_PACKET_UTILS_DFLT"
-
-// API
-////////////////////////////////////////////////////////////////////////////////
-#ifdef __cplusplus
-extern "C" {
-#endif
-  extern unsigned long long serv_socket_create(const char * name, unsigned int dflt_port);
-  extern unsigned long long serv_socket_create_nameless(unsigned int dflt_port);
-  extern inline void serv_socket_init(unsigned long long ptr);
-  extern uint32_t serv_socket_get8(unsigned long long ptr);
-  extern uint8_t serv_socket_put8(unsigned long long ptr, uint8_t byte);
-  extern uint8_t serv_socket_put8_blocking(unsigned long long ptr, uint8_t byte);
-  extern void serv_socket_getN(void* result, unsigned long long ptr, int nbytes);
-  extern uint8_t serv_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data);
-  extern unsigned long long client_socket_create(const char * name, unsigned int dflt_port);
-  extern inline void client_socket_init(unsigned long long ptr);
-  extern uint8_t client_socket_put8_blocking(unsigned long long ptr, uint8_t byte);
-  extern void client_socket_getN(void* result, unsigned long long ptr, int nbytes);
-#ifdef __cplusplus
-}
-#endif
 
 // General helpers
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,24 +109,6 @@ typedef struct {
   int conn;
 } serv_socket_state_t;
 
-// Accept connection
-void acceptConnection(serv_socket_state_t * s, bool server)
-{
-  if (s->conn != -1) return;
-  if (s->sock == -1) socket_init((unsigned long long) s, server);
-
-  if (server) {
-    // Accept connection
-    s->conn = accept(s->sock, NULL, NULL);
-
-    // Make connection non-blocking
-    if (s->conn != -1) {
-      printf("---- %s socket got a connection\n", s->name);
-      socketSetNonBlocking(s->conn);
-    }
-  } else s->conn = s->sock;
-}
-
 unsigned long long socket_create(const char * name, unsigned int dflt_port)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) malloc (sizeof(serv_socket_state_t));
@@ -161,7 +123,7 @@ unsigned long long socket_create(const char * name, unsigned int dflt_port)
   return (unsigned long long) s;
 }
 
-extern inline void socket_init(unsigned long long ptr, bool server)
+void socket_init(unsigned long long ptr, bool server)
 {
   serv_socket_state_t * s = (serv_socket_state_t *) ptr;
   if (s->sock != -1) return;
@@ -216,6 +178,25 @@ extern inline void socket_init(unsigned long long ptr, bool server)
 
   printf("---- %s socket listening on port %d\n", s->name, s->port);
 }
+
+// Accept connection
+void acceptConnection(serv_socket_state_t * s, bool server)
+{
+  if (s->conn != -1) return;
+  if (s->sock == -1) socket_init((unsigned long long) s, server);
+
+  if (server) {
+    // Accept connection
+    s->conn = accept(s->sock, NULL, NULL);
+
+    // Make connection non-blocking
+    if (s->conn != -1) {
+      printf("---- %s socket got a connection\n", s->name);
+      socketSetNonBlocking(s->conn);
+    }
+  } else s->conn = s->sock;
+}
+
 
 // Non-blocking read of 8 bits
 uint32_t socket_get8(unsigned long long ptr, bool server)
@@ -363,7 +344,7 @@ unsigned long long serv_socket_create_nameless(unsigned int dflt_port)
 }
 
 // Open, bind and listen
-extern inline void serv_socket_init(unsigned long long ptr)
+extern void serv_socket_init(unsigned long long ptr)
 {
   socket_init(ptr, true);
 }
@@ -410,7 +391,7 @@ unsigned long long client_socket_create(const char * name, unsigned int dflt_por
 }
 
 // Open, bind and listen
-extern inline void client_socket_init(unsigned long long ptr)
+extern void client_socket_init(unsigned long long ptr)
 {
   socket_init(ptr, false);
 }
