@@ -408,7 +408,7 @@ void client_socket_getN(void* result, unsigned long long ptr, int nbytes)
 // returning 0 when no write performed.
 uint8_t client_socket_putN(unsigned long long ptr, int nbytes, unsigned int* data)
 {
-  socket_putN(ptr, nbytes, data, false);
+  return socket_putN(ptr, nbytes, data, false);
 }
 
 #undef ENV_DFLT_SOCKET_NAME
